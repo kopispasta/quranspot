@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@layer base {
+  :root, [data-theme="midnight"] {
+    --theme-bg-main: #090a12;
+    --theme-bg-sidebar: #0d0f1a;
+    --theme-bg-header: rgba(10, 12, 22, 0.88);
+    --theme-bg-card: #131627;
+    --theme-bg-card-hover: #1a1f36;
+    --theme-bg-pill: #1d233d;
+    --theme-border: rgba(56, 189, 248, 0.14);
+    --theme-border-accent: rgba(56, 189, 248, 0.5);
+    --theme-accent: #38bdf8;
+    --theme-accent-hover: #0284c7;
+    --theme-accent-glow: rgba(56, 189, 248, 0.25);
+    --theme-text-accent: #38bdf8;
+  }
+
+  [data-theme="emerald"] {
+    --theme-bg-main: #02130a;
+    --theme-bg-sidebar: #051d10;
+    --theme-bg-header: rgba(4, 25, 14, 0.90);
+    --theme-bg-card: #092817;
+    --theme-bg-card-hover: #0e3821;
+    --theme-bg-pill: #13492b;
+    --theme-border: rgba(16, 185, 129, 0.22);
+    --theme-border-accent: rgba(16, 185, 129, 0.65);
+    --theme-accent: #10b981;
+    --theme-accent-hover: #059669;
+    --theme-accent-glow: rgba(16, 185, 129, 0.35);
+    --theme-text-accent: #34d399;
+  }
+
+  [data-theme="kaaba"] {
+    --theme-bg-main: #0d0a04;
+    --theme-bg-sidebar: #171207;
+    --theme-bg-header: rgba(18, 14, 6, 0.90);
+    --theme-bg-card: #221a0a;
+    --theme-bg-card-hover: #31250f;
+    --theme-bg-pill: #3d2e13;
+    --theme-border: rgba(245, 158, 11, 0.22);
+    --theme-border-accent: rgba(245, 158, 11, 0.65);
+    --theme-accent: #f59e0b;
+    --theme-accent-hover: #d97706;
+    --theme-accent-glow: rgba(245, 158, 11, 0.35);
+    --theme-text-accent: #fbbf24;
+  }
+
+  [data-theme="monochrome"] {
+    --theme-bg-main: #050505;
+    --theme-bg-sidebar: #0c0c0c;
+    --theme-bg-header: rgba(8, 8, 8, 0.92);
+    --theme-bg-card: #151515;
+    --theme-bg-card-hover: #202020;
+    --theme-bg-pill: #2b2b2b;
+    --theme-border: rgba(255, 255, 255, 0.14);
+    --theme-border-accent: rgba(255, 255, 255, 0.55);
+    --theme-accent: #f8fafc;
+    --theme-accent-hover: #cbd5e1;
+    --theme-accent-glow: rgba(255, 255, 255, 0.25);
+    --theme-text-accent: #ffffff;
+  }
+
+  body {
+    background-color: var(--theme-bg-main);
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    transition: background-color 0.4s ease, border-color 0.4s ease;
+  }
+}
+
+.bg-theme-main { background-color: var(--theme-bg-main) !important; }
+.bg-theme-sidebar { background-color: var(--theme-bg-sidebar) !important; }
+.bg-theme-header { background-color: var(--theme-bg-header) !important; }
+.bg-theme-card { background-color: var(--theme-bg-card) !important; }
+.bg-theme-pill { background-color: var(--theme-bg-pill) !important; }
+.border-theme { border-color: var(--theme-border) !important; }
+.border-theme-accent { border-color: var(--theme-border-accent) !important; }
+.text-theme-accent { color: var(--theme-text-accent) !important; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: var(--theme-bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--theme-border);
+}
+
+.glass-pill {
+  background: var(--theme-bg-pill);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--theme-border);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--theme-border);
+  transition: all 0.2s ease;
+}
