@@ -17,7 +17,8 @@ import {
   Mic2,
   Keyboard,
   Sliders,
-  Palette
+  Palette,
+  Gauge
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
@@ -57,7 +58,9 @@ export const BottomPlayer: React.FC<Props> = ({ onOpenAmbientMixer, onOpenSleepT
     eqPreset,
     setIsEqModalOpen,
     theme,
-    setIsThemeModalOpen
+    setIsThemeModalOpen,
+    speed,
+    setIsSpeedModalOpen
   } = usePlayer();
 
   const handleToggleReciter = () => {
@@ -192,6 +195,20 @@ export const BottomPlayer: React.FC<Props> = ({ onOpenAmbientMixer, onOpenSleepT
               title={`Ulangi: ${repeatMode === 'one' ? 'Surah Ini' : repeatMode === 'all' ? 'Semua' : 'Mati'}`}
             >
               {repeatMode === 'one' ? <Repeat1 className="w-3.5 h-3.5" /> : <Repeat className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Speed Trigger Button */}
+            <button
+              onClick={() => setIsSpeedModalOpen(true)}
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 border transition hover:scale-105 active:scale-95 cursor-pointer ${
+                speed !== 1.0
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white border-white/10 bg-white/5'
+              }`}
+              title={`Atur Kecepatan Suara Qari (${speed}x)`}
+            >
+              <Gauge className="w-3 h-3 text-amber-400" />
+              <span>{speed % 1 === 0 ? speed.toFixed(0) : (speed * 10) % 1 === 0 ? speed.toFixed(1) : speed.toFixed(2)}x</span>
             </button>
           </div>
 

@@ -14,7 +14,8 @@ import {
   Sliders,
   Image as ImageIcon,
   Check,
-  Mic2
+  Mic2,
+  Gauge
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
@@ -57,12 +58,12 @@ export const ZenPlayer: React.FC<Props> = ({ onOpenAmbientMixer, onOpenSleepTime
     setIsMushafOpen,
     isFavorite,
     toggleFavorite,
-    sleepTimerMinutes
+    sleepTimerMinutes,
+    setIsSpeedModalOpen
   } = usePlayer();
 
   const [currentWallpaper, setCurrentWallpaper] = useState(WALLPAPERS[0]);
   const [showWallpaperSelector, setShowWallpaperSelector] = useState(false);
-  const [showSpeedSelector, setShowSpeedSelector] = useState(false);
 
   const activeSound = ambientSounds.find(s => s.isActive);
 
@@ -248,31 +249,14 @@ export const ZenPlayer: React.FC<Props> = ({ onOpenAmbientMixer, onOpenSleepTime
           {/* Top Row: Speed, Controls, Sleep Timer */}
           <div className="flex items-center justify-between gap-4 mb-4">
             {/* Speed Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSpeedSelector(prev => !prev)}
-                className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-mono font-semibold transition"
-                title="Kecepatan Audio"
-              >
-                {speed}x
-              </button>
-              {showSpeedSelector && (
-                <div className="absolute left-0 bottom-8 rounded-xl bg-[#12131f] border border-white/20 p-1.5 shadow-xl z-30 flex flex-col gap-1 text-xs">
-                  {[0.75, 1.0, 1.25, 1.5].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setSpeed(s);
-                        setShowSpeedSelector(false);
-                      }}
-                      className={`px-3 py-1 rounded-lg text-left font-mono ${speed === s ? 'bg-sky-500 text-slate-950 font-bold' : 'text-slate-300 hover:bg-white/10'}`}
-                    >
-                      {s}x
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setIsSpeedModalOpen(true)}
+              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-mono font-semibold transition flex items-center gap-1.5 cursor-pointer"
+              title="Atur Kecepatan Audio Qari"
+            >
+              <Gauge className="w-3.5 h-3.5 text-amber-400" />
+              <span>{speed % 1 === 0 ? speed.toFixed(0) : (speed * 10) % 1 === 0 ? speed.toFixed(1) : speed.toFixed(2)}x</span>
+            </button>
 
             {/* Playback Controls */}
             <div className="flex items-center gap-5">

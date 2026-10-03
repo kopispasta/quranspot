@@ -10,6 +10,7 @@ export const ShortcutsModal: React.FC = () => {
   const shortcuts = [
     { key: 'Spasi', desc: 'Putar atau jeda audio tilawah' },
     { key: '← / →', desc: 'Mundur / Maju 10 detik' },
+    { key: '[ / ]', desc: 'Perlambat / Percepat tempo suara qari' },
     { key: 'M', desc: 'Bisukan / Bunyikan volume suara qari' },
     { key: 'Z', desc: 'Buka / Tutup Mode Zen layar penuh' },
     { key: 'Q', desc: 'Buka teks Mushaf dan terjemahan berjalan' },

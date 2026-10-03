@@ -38,6 +38,8 @@ interface PlayerContextType {
   // Settings
   speed: number;
   setSpeed: (speed: number) => void;
+  isSpeedModalOpen: boolean;
+  setIsSpeedModalOpen: (open: boolean) => void;
   repeatMode: 'off' | 'one' | 'all';
   cycleRepeatMode: () => void;
   isShuffled: boolean;
@@ -152,7 +154,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
-  const [speed, setSpeedState] = useState<number>(1.0);
+  const [speed, setSpeedState] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('quranspot_speed');
+      return saved ? parseFloat(saved) : 1.0;
+    } catch {
+      return 1.0;
+    }
+  });
+  const [isSpeedModalOpen, setIsSpeedModalOpen] = useState<boolean>(false);
   const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off');
   const [isShuffled, setIsShuffled] = useState<boolean>(false);
   const [reciterVolume, setReciterVolumeState] = useState<number>(0.9);
@@ -829,9 +839,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setSpeed = (val: number) => {
-    setSpeedState(val);
+    const rounded = Math.round(val * 100) / 100;
+    const bounded = Math.max(0.5, Math.min(2.0, rounded));
+    setSpeedState(bounded);
+    speedRef.current = bounded;
+    try {
+      localStorage.setItem('quranspot_speed', bounded.toString());
+    } catch {}
     if (audioRef.current) {
-      audioRef.current.playbackRate = val;
+      audioRef.current.playbackRate = bounded;
+    }
+    if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(0, duration),
+          playbackRate: bounded,
+          position: Math.min(Math.max(0, currentTime), duration)
+        });
+      } catch {}
     }
   };
 
@@ -1071,6 +1096,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           e.preventDefault();
           setIsMushafOpen(!isMushafOpen);
           break;
+        case 'BracketLeft':
+          e.preventDefault();
+          setSpeed(Math.round((speedRef.current - 0.1) * 10) / 10);
+          break;
+        case 'BracketRight':
+          e.preventDefault();
+          setSpeed(Math.round((speedRef.current + 0.1) * 10) / 10);
+          break;
         case 'Slash':
           if (e.shiftKey) {
             e.preventDefault();
@@ -1082,7 +1115,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, seekRelative, toggleReciterMute, isZenMode, isMushafOpen, isShortcutsOpen]);
+  }, [togglePlay, seekRelative, toggleReciterMute, isZenMode, isMushafOpen, isShortcutsOpen, setSpeed]);
 
   return (
     <PlayerContext.Provider
@@ -1158,6 +1191,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTheme,
         isThemeModalOpen,
         setIsThemeModalOpen,
+        isSpeedModalOpen,
+        setIsSpeedModalOpen,
       }}
     >
       {children}

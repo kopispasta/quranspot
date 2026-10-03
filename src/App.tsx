@@ -17,6 +17,7 @@ import { ResumeBanner } from './components/ResumeBanner';
 import { KhatamTrackerModal } from './components/KhatamTrackerModal';
 import { EqualizerModal } from './components/EqualizerModal';
 import { ThemeSelectorModal } from './components/ThemeSelectorModal';
+import { SpeedModal } from './components/SpeedModal';
 import { Collection } from './data/collections';
 
 const MainContent: React.FC = () => {
@@ -114,6 +115,9 @@ const MainContent: React.FC = () => {
 
       {/* Visual Theme Selector Modal */}
       <ThemeSelectorModal />
+
+      {/* Reciter Playback Speed Modal */}
+      <SpeedModal />
     </div>
   );
 };
