@@ -405,17 +405,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const setEqPreset = (preset: EqPreset) => {
-    setEqPresetState(preset);
-    try {
-      localStorage.setItem('quranspot_eq', preset);
-    } catch {}
-    if (!eqCtxRef.current && audioRef.current) {
-      initAudioEq();
-    }
-    applyEqGains(preset);
-  };
-
   const lastSaveRef = useRef<number>(0);
   const lastSecRef = useRef<number>(0);
 
@@ -425,20 +414,97 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const getAudioUrlForSurah = (surahId: number, targetReciter = reciter) => {
+  // Synchronized state refs to avoid stale closure during background & lockscreen playback
+  const currentSurahRef = useRef(currentSurah);
+  currentSurahRef.current = currentSurah;
+
+  const reciterRef = useRef(reciter);
+  reciterRef.current = reciter;
+
+  const repeatModeRef = useRef(repeatMode);
+  repeatModeRef.current = repeatMode;
+
+  const isShuffledRef = useRef(isShuffled);
+  isShuffledRef.current = isShuffled;
+
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+
+  const reciterVolumeRef = useRef(reciterVolume);
+  reciterVolumeRef.current = reciterVolume;
+
+  const isReciterMutedRef = useRef(isReciterMuted);
+  isReciterMutedRef.current = isReciterMuted;
+
+  const eqPresetRef = useRef(eqPreset);
+  eqPresetRef.current = eqPreset;
+
+  const getAudioUrlForSurah = (surahId: number, targetReciter = reciterRef.current) => {
     const formattedId = surahId.toString().padStart(3, '0');
     return `${targetReciter.audioServer}${formattedId}.mp3`;
   };
 
-  // Setup HTML5 Audio element
-  useEffect(() => {
-    const audio = new Audio();
-    audio.preload = 'metadata';
-    audio.crossOrigin = 'anonymous';
-    audio.volume = isReciterMuted ? 0 : reciterVolume;
-    audio.src = getAudioUrlForSurah(currentSurah.id, reciter);
-    audioRef.current = audio;
+  // Re-creates clean native HTMLAudioElement to release Web Audio hooks for background playback
+  const recreateNativeAudioElement = () => {
+    if (!audioRef.current) return;
+    const oldAudio = audioRef.current;
+    const savedTime = oldAudio.currentTime;
+    const wasPlaying = isPlayingRef.current;
+    const currentSrc = oldAudio.src;
 
+    oldAudio.pause();
+    oldAudio.src = '';
+
+    const newAudio = new Audio();
+    newAudio.preload = 'auto';
+    newAudio.crossOrigin = 'anonymous';
+    newAudio.volume = isReciterMutedRef.current ? 0 : reciterVolumeRef.current;
+    newAudio.playbackRate = speedRef.current;
+    newAudio.src = currentSrc;
+    newAudio.currentTime = savedTime;
+    attachAudioListeners(newAudio);
+    audioRef.current = newAudio;
+
+    if (wasPlaying) {
+      newAudio.play().then(() => {
+        setIsPlaying(true);
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }).catch(console.warn);
+    }
+  };
+
+  const setEqPreset = (preset: EqPreset) => {
+    setEqPresetState(preset);
+    try {
+      localStorage.setItem('quranspot_eq', preset);
+    } catch {}
+
+    if (preset === 'normal') {
+      // Revert completely to pure Direct Native Audio for 100% background stability
+      if (eqCtxRef.current) {
+        try {
+          eqCtxRef.current.close().catch(() => {});
+        } catch {}
+        eqCtxRef.current = null;
+        eqNodesRef.current = null;
+        recreateNativeAudioElement();
+      }
+      return;
+    }
+
+    if (!eqCtxRef.current && audioRef.current) {
+      initAudioEq();
+    }
+    applyEqGains(preset);
+  };
+
+  // Core listener attacher ensuring background stability and lock screen updates
+  const attachAudioListeners = (audio: HTMLAudioElement) => {
     const handleLoadedMetadata = () => {
       setDuration(audio.duration || 0);
     };
@@ -446,14 +512,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleError = () => {
       console.warn('Audio stream error on reciter URL:', audio.src, audio.error);
     };
-    audio.addEventListener('error', handleError);
 
     const handleTimeUpdate = () => {
       const time = audio.currentTime || 0;
       setCurrentTime(time);
 
+      // Lock screen scrubber bar & position state
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: Math.max(0, audio.duration),
+              playbackRate: audio.playbackRate || 1.0,
+              position: Math.min(Math.max(0, time), audio.duration)
+            });
+          } catch {}
+        }
+      }
+
       const now = Date.now();
-      // Track listened seconds every second
       const nowSec = Math.floor(now / 1000);
       if (nowSec !== lastSecRef.current) {
         lastSecRef.current = nowSec;
@@ -472,9 +549,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Persist last played session every ~3s if time > 2
       if (now - lastSaveRef.current > 3000 && time > 2) {
         lastSaveRef.current = now;
+        const curSurah = currentSurahRef.current;
+        const curReciter = reciterRef.current;
         const session: LastPlayedSession = {
-          surahId: currentSurah.id,
-          reciterId: reciter.id,
+          surahId: curSurah.id,
+          reciterId: curReciter.id,
           currentTime: Math.floor(time),
           duration: Math.floor(audio.duration || 0),
           updatedAt: now
@@ -482,17 +561,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLastPlayed(session);
         try {
           localStorage.setItem('quranspot_last_played', JSON.stringify(session));
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     };
 
     const handleEnded = () => {
-      // Auto-mark surah as completed for Khatam tracker
+      const curSurah = currentSurahRef.current;
       setKhatamCompletedSurahs(prev => {
-        if (!prev.includes(currentSurah.id)) {
-          const next = [...prev, currentSurah.id];
+        if (!prev.includes(curSurah.id)) {
+          const next = [...prev, curSurah.id];
           try {
             localStorage.setItem('quranspot_khatam_completed', JSON.stringify(next));
           } catch {}
@@ -501,22 +578,41 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return prev;
       });
 
-      if (repeatMode === 'one') {
+      if (repeatModeRef.current === 'one') {
         audio.currentTime = 0;
         audio.play().catch(console.error);
       } else {
-        nextSurah();
+        // Continuous background progression from surah to surah
+        let nextId: number;
+        if (isShuffledRef.current) {
+          nextId = Math.floor(Math.random() * 114) + 1;
+        } else {
+          nextId = curSurah.id >= 114 ? 1 : curSurah.id + 1;
+        }
+        const next = SURAHS.find(s => s.id === nextId) || SURAHS[0];
+        setCurrentSurah(next, true);
       }
     };
 
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
+    };
+
     const handlePause = () => {
       setIsPlaying(false);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
       const time = audio.currentTime || 0;
       if (time > 2) {
+        const curSurah = currentSurahRef.current;
+        const curReciter = reciterRef.current;
         const session: LastPlayedSession = {
-          surahId: currentSurah.id,
-          reciterId: reciter.id,
+          surahId: curSurah.id,
+          reciterId: curReciter.id,
           currentTime: Math.floor(time),
           duration: Math.floor(audio.duration || 0),
           updatedAt: Date.now()
@@ -524,20 +620,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLastPlayed(session);
         try {
           localStorage.setItem('quranspot_last_played', JSON.stringify(session));
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('error', handleError);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
 
     return () => {
-      audio.pause();
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -545,28 +639,97 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
     };
+  };
+
+  // Setup initial HTML5 Audio element
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.crossOrigin = 'anonymous';
+    audio.volume = isReciterMuted ? 0 : reciterVolume;
+    audio.src = getAudioUrlForSurah(currentSurah.id, reciter);
+    audioRef.current = audio;
+
+    const cleanupListeners = attachAudioListeners(audio);
+
+    return () => {
+      audio.pause();
+      cleanupListeners();
+    };
   }, []);
 
-  // Update Media Session (Lockscreen & Bluetooth Controls)
+  // Update Media Session (Lockscreen & Control Center)
   useEffect(() => {
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: `${currentSurah.id}. ${currentSurah.nameSimple} (${currentSurah.nameArabic})`,
-        artist: reciter.name,
-        album: 'Quranspot - Al-Qur\'an & Ambient Sounds',
-        artwork: [
-          { src: reciter.avatar, sizes: '512x512', type: 'image/png' }
-        ]
-      });
+      try {
+        const fullAvatarUrl = reciter.avatar.startsWith('http')
+          ? reciter.avatar
+          : new URL(reciter.avatar, window.location.href).href;
 
-      navigator.mediaSession.setActionHandler('play', () => play());
-      navigator.mediaSession.setActionHandler('pause', () => pause());
-      navigator.mediaSession.setActionHandler('previoustrack', () => prevSurah());
-      navigator.mediaSession.setActionHandler('nexttrack', () => nextSurah());
-      navigator.mediaSession.setActionHandler('seekforward', () => seekRelative(10));
-      navigator.mediaSession.setActionHandler('seekbackward', () => seekRelative(-10));
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: `${currentSurah.id}. ${currentSurah.nameSimple} (${currentSurah.nameArabic})`,
+          artist: `${reciter.name} • Quranspot`,
+          album: `Surah ke-${currentSurah.id} • ${currentSurah.versesCount} Ayat (${currentSurah.translatedName})`,
+          artwork: [
+            { src: fullAvatarUrl, sizes: '96x96', type: 'image/png' },
+            { src: fullAvatarUrl, sizes: '128x128', type: 'image/png' },
+            { src: fullAvatarUrl, sizes: '192x192', type: 'image/png' },
+            { src: fullAvatarUrl, sizes: '256x256', type: 'image/png' },
+            { src: fullAvatarUrl, sizes: '384x384', type: 'image/png' },
+            { src: fullAvatarUrl, sizes: '512x512', type: 'image/png' }
+          ]
+        });
+
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+        navigator.mediaSession.setActionHandler('play', () => play());
+        navigator.mediaSession.setActionHandler('pause', () => pause());
+        navigator.mediaSession.setActionHandler('previoustrack', () => prevSurah());
+        navigator.mediaSession.setActionHandler('nexttrack', () => nextSurah());
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          seekRelative(details.seekOffset || 10);
+        });
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          seekRelative(-(details.seekOffset || 10));
+        });
+        try {
+          navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime !== undefined && details.seekTime !== null) {
+              seek(details.seekTime);
+            }
+          });
+        } catch {}
+        try {
+          navigator.mediaSession.setActionHandler('stop', () => pause());
+        } catch {}
+      } catch (e) {
+        console.warn('MediaSession metadata error:', e);
+      }
     }
-  }, [currentSurah, reciter]);
+  }, [currentSurah, reciter, isPlaying]);
+
+  // Handle visibilitychange to ensure background playback resilience
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = isPlayingRef.current ? 'playing' : 'paused';
+        }
+      } else if (document.visibilityState === 'visible') {
+        if (eqCtxRef.current && eqCtxRef.current.state === 'suspended' && isPlayingRef.current) {
+          eqCtxRef.current.resume().catch(() => {});
+        }
+        if (audioRef.current && isPlayingRef.current && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Switch Reciter
   const setReciter = (newReciter: Reciter) => {
@@ -586,14 +749,23 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Load new audio source on surah change
   const setCurrentSurah = (surah: Surah, autoplay = true) => {
     setCurrentSurahState(surah);
-    localStorage.setItem('quranspot_last_surah', surah.id.toString());
+    try {
+      localStorage.setItem('quranspot_last_surah', surah.id.toString());
+    } catch {}
     if (audioRef.current) {
-      audioRef.current.src = getAudioUrlForSurah(surah.id, reciter);
-      audioRef.current.playbackRate = speed;
-      audioRef.current.volume = isReciterMuted ? 0 : reciterVolume;
+      audioRef.current.src = getAudioUrlForSurah(surah.id, reciterRef.current);
+      audioRef.current.playbackRate = speedRef.current;
+      audioRef.current.volume = isReciterMutedRef.current ? 0 : reciterVolumeRef.current;
       if (autoplay) {
-        initAudioEq();
-        audioRef.current.play().catch(err => {
+        if (eqPresetRef.current !== 'normal' && !eqCtxRef.current) {
+          initAudioEq();
+        }
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+          }
+        }).catch(err => {
           console.warn('Autoplay prevented by browser:', err);
         });
       }
@@ -608,14 +780,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const play = () => {
-    initAudioEq();
+    if (eqPresetRef.current !== 'normal' && !eqCtxRef.current) {
+      initAudioEq();
+    }
     if (audioRef.current) {
       if (!audioRef.current.src || audioRef.current.src === '') {
-        audioRef.current.src = getAudioUrlForSurah(currentSurah.id, reciter);
+        audioRef.current.src = getAudioUrlForSurah(currentSurahRef.current.id, reciterRef.current);
       }
       audioRef.current.play().then(() => {
         setIsPlaying(true);
-      }).catch(err => console.warn(err));
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }).catch(err => console.warn('Play error:', err));
     }
   };
 
@@ -623,6 +800,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
     }
   };
 

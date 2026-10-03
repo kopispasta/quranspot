@@ -1,0 +1,23 @@
+{
+  "name": "Quranspot — Al-Qur'an & Ambient Player",
+  "short_name": "Quranspot",
+  "description": "Al-Qur'an & Ambient Sound Web Player with Voice EQ, 3 Qaris, and Khatam Tracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090a0f",
+  "theme_color": "#090a0f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./reciters/yasser-al-dosari-hires.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

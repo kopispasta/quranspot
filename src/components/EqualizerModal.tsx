@@ -15,9 +15,9 @@ const EQ_PRESETS: PresetInfo[] = [
   {
     id: 'normal',
     name: 'Normal (Murni)',
-    badge: 'Flat Studio',
+    badge: 'Direct Native • Layar Mati HP',
     icon: '🎙️',
-    description: 'Frekuensi akustik asli tanpa rekayasa pewarnaan frekuensi',
+    description: 'Frekuensi asli hardware tanpa rekayasa filter. Dioptimalkan untuk pemutaran di HP saat layar mati atau terkunci.',
     gains: { low: '0 dB', mid: '0 dB', high: '0 dB' }
   },
   {
@@ -166,6 +166,17 @@ export const EqualizerModal: React.FC = () => {
               </div>
             );
           })}
+        </div>
+
+        {/* Tips Layar Mati HP */}
+        <div className="mb-3 p-3 rounded-2xl bg-sky-950/40 border border-sky-500/20 flex items-start gap-2.5 text-xs text-sky-200">
+          <span className="text-base shrink-0">📱</span>
+          <div>
+            <span className="font-bold text-sky-100">Tips Pemutaran Latar Belakang (Layar HP Mati):</span>
+            <p className="text-[11px] text-sky-200/80 mt-0.5 leading-relaxed">
+              Browser HP (iOS / Android) membatasi Web Audio saat layar dimatikan demi hemat baterai. Gunakan preset <strong>Normal (Murni)</strong> untuk pemutaran tanpa henti dan kontrol penuh di Lock Screen HP.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}

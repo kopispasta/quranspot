@@ -113,6 +113,12 @@ interface ChannelState {
   isActive: boolean;
 }
 
+const isMobileDevice = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || 
+    (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
+};
+
 class StudioAmbientAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -177,7 +183,6 @@ class StudioAmbientAudioEngine {
   }
 
   public setSoundActive(id: string, active: boolean, volume = 0.35) {
-    const ctx = this.initContext();
     const soundDef = INITIAL_AMBIENT_SOUNDS.find(s => s.id === id);
     if (!soundDef) return;
 
@@ -186,6 +191,7 @@ class StudioAmbientAudioEngine {
       const ch = this.channels.get(id);
       if (ch) {
         ch.isActive = false;
+        const ctx = this.ctx;
         if (ctx && ch.gainNode) {
           const now = ctx.currentTime;
           ch.gainNode.gain.cancelScheduledValues(now);
@@ -211,6 +217,7 @@ class StudioAmbientAudioEngine {
         } else {
           if (ch.audioElement) {
             ch.audioElement.pause();
+            ch.audioElement.currentTime = 0;
           }
           this.channels.delete(id);
         }
@@ -224,11 +231,34 @@ class StudioAmbientAudioEngine {
       return;
     }
 
+    // On mobile devices, use direct HTML5 Audio for reliable background/screen-off playback
+    if (isMobileDevice()) {
+      const audio = new Audio(soundDef.audioSrc);
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
+      audio.volume = Math.max(0.001, Math.min(1.0, volume));
+      audio.play().catch(e => console.warn(`Autoplay blocked for ${id}:`, e));
+      this.channels.set(id, {
+        sourceNode: null,
+        gainNode: null as unknown as GainNode,
+        filterNode: null as unknown as BiquadFilterNode,
+        targetVolume: volume,
+        audioElement: audio,
+        isActive: true
+      });
+      return;
+    }
+
+    const ctx = this.initContext();
+
     if (!ctx || !this.masterGain) {
       // Direct HTML5 Audio fallback
       const audio = new Audio(soundDef.audioSrc);
       audio.loop = true;
-      audio.volume = volume;
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
+      audio.volume = Math.max(0.001, Math.min(1.0, volume));
       audio.play().catch(() => {});
       this.channels.set(id, {
         sourceNode: null,
@@ -320,10 +350,16 @@ class StudioAmbientAudioEngine {
   }
 
   public setMasterVolume(vol: number) {
+    const bounded = Math.max(0, Math.min(1, vol));
+    this.channels.forEach(ch => {
+      if (ch.audioElement) {
+        ch.audioElement.volume = Math.max(0.001, Math.min(1.0, ch.targetVolume * bounded));
+      }
+    });
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(1, vol)), now, 0.05);
+    this.masterGain.gain.setTargetAtTime(bounded, now, 0.05);
   }
 
   public stopAll() {
